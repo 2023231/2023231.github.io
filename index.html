@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 오목 게임</title>
+    <title>최강 AI 오목 게임</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
@@ -56,9 +56,9 @@
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
 
 <div class="container">
-    <h1 class="text-3xl font-bold text-gray-800 mb-4">AI 오목 게임</h1>
+    <h1 class="text-3xl font-bold text-gray-800 mb-4">최강 AI 오목 게임</h1>
     <p class="text-center text-gray-600 mb-6">
-        50% 확률로 돌을 둘 수 있습니다. 5개의 돌을 먼저 연결하면 승리합니다!
+        당신은 검은 돌, AI는 빨간 돌입니다. 먼저 5개의 돌을 연결하면 승리합니다!
     </p>
 
     <canvas id="gameCanvas"></canvas>
@@ -80,16 +80,14 @@
     const newGameButton = document.getElementById('newGameButton');
     const messageBox = document.getElementById('message-box');
 
-    const BOARD_SIZE = 30;
-    const CELL_SIZE = 15;
+    const BOARD_SIZE = 15;
+    const CELL_SIZE = 30;
     const PADDING = 20;
-    const players = ['black', 'red', 'blue'];
-    const aiPlayers = ['red', 'blue'];
     const WIN_COUNT = 5;
-    const PROBABILITY = 0.5;
+    const AI_SEARCH_DEPTH = 3;
 
     let board = [];
-    let turnIndex = 0;
+    let currentPlayer = 'black';
     let isGameOver = false;
 
     // Set canvas dimensions
@@ -100,7 +98,7 @@
     // Initialize game
     function initGame() {
         board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
-        turnIndex = 0;
+        currentPlayer = 'black';
         isGameOver = false;
         drawBoard();
         updateMessage();
@@ -165,7 +163,7 @@
 
     // Handle player's move
     function handleMove(event) {
-        if (players[turnIndex] !== 'black' || isGameOver) return;
+        if (currentPlayer !== 'black' || isGameOver) return;
 
         const rect = canvas.getBoundingClientRect();
         const x = event.clientX - rect.left;
@@ -183,16 +181,6 @@
 
     // Place a stone and check for game over
     function placeStone(row, col, color) {
-        if (Math.random() >= PROBABILITY) {
-            showMessage(`${getColorName(color)} 돌을 놓는 데 실패했습니다.`);
-            turnIndex = (turnIndex + 1) % players.length;
-            const nextPlayer = players[turnIndex];
-            if (aiPlayers.includes(nextPlayer)) {
-                setTimeout(() => aiMove(nextPlayer), 500);
-            }
-            return;
-        }
-        
         board[row][col] = color;
         drawBoard();
         
@@ -201,21 +189,12 @@
         } else if (isBoardFull()) {
             endGame('draw');
         } else {
-            turnIndex = (turnIndex + 1) % players.length;
-            const nextPlayer = players[turnIndex];
+            currentPlayer = (color === 'black') ? 'red' : 'black';
             updateMessage();
-            if (aiPlayers.includes(nextPlayer)) {
-                setTimeout(() => aiMove(nextPlayer), 500);
+            if (currentPlayer === 'red') {
+                setTimeout(aiMove, 500);
             }
         }
-    }
-
-    // Get Korean color name
-    function getColorName(color) {
-      if (color === 'red') return '빨간';
-      if (color === 'blue') return '파란';
-      if (color === 'black') return '검은';
-      return '알 수 없는';
     }
 
     // Check for a winning condition
@@ -272,40 +251,111 @@
         if (winner === 'draw') {
             message = '무승부입니다!';
         } else {
-            const winnerName = winner === 'black' ? '당신' : `${getColorName(winner)} AI`;
+            const winnerName = (winner === 'black') ? '당신' : 'AI';
             message = `${winnerName}의 승리입니다! 🎉`;
         }
         showMessage(message);
     }
 
-    // --- AI Logic ---
-    function aiMove(color) {
+    // --- AI Logic (Minimax with Alpha-Beta Pruning) ---
+    function aiMove() {
         if (isGameOver) return;
         
-        const emptyCells = [];
-        for (let r = 0; r < BOARD_SIZE; r++) {
-            for (let c = 0; c < BOARD_SIZE; c++) {
-                if (board[r][c] === null) {
-                    emptyCells.push({ row: r, col: c });
-                }
-            }
-        }
-
-        if (emptyCells.length > 0) {
-            const move = getBestMove(color);
-            placeStone(move.row, move.col, color);
+        showMessage("AI가 생각 중입니다...");
+        
+        const bestMove = findBestMove(board, AI_SEARCH_DEPTH, 'red');
+        if (bestMove) {
+            placeStone(bestMove.row, bestMove.col, 'red');
         } else {
             endGame('draw');
         }
     }
 
-    // Simple AI to find the best move
-    function getBestMove(color) {
-        let bestScore = -1;
+    function findBestMove(board, depth, color) {
+        let bestScore = -Infinity;
         let bestMove = null;
+        let alpha = -Infinity;
+        let beta = Infinity;
 
-        const opponentColor = players.find(p => p !== color && aiPlayers.includes(p));
+        const emptyCells = getPossibleMoves(board);
 
+        for (const move of emptyCells) {
+            board[move.row][move.col] = color;
+            const score = minimax(board, depth - 1, false, alpha, beta);
+            board[move.row][move.col] = null; // Undo move
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = move;
+            }
+            alpha = Math.max(alpha, score);
+        }
+        return bestMove;
+    }
+
+    function minimax(board, depth, isMaximizingPlayer, alpha, beta) {
+        const score = evaluateBoard(board);
+        if (depth === 0 || isGameOver || Math.abs(score) > 100000) {
+            return score;
+        }
+
+        const color = isMaximizingPlayer ? 'red' : 'black';
+        const opponentColor = isMaximizingPlayer ? 'black' : 'red';
+        
+        const possibleMoves = getPossibleMoves(board);
+
+        if (isMaximizingPlayer) {
+            let maxEval = -Infinity;
+            for (const move of possibleMoves) {
+                board[move.row][move.col] = color;
+                const eval = minimax(board, depth - 1, false, alpha, beta);
+                board[move.row][move.col] = null;
+                maxEval = Math.max(maxEval, eval);
+                alpha = Math.max(alpha, eval);
+                if (beta <= alpha) break;
+            }
+            return maxEval;
+        } else {
+            let minEval = Infinity;
+            for (const move of possibleMoves) {
+                board[move.row][move.col] = color;
+                const eval = minimax(board, depth - 1, true, alpha, beta);
+                board[move.row][move.col] = null;
+                minEval = Math.min(minEval, eval);
+                beta = Math.min(beta, eval);
+                if (beta <= alpha) break;
+            }
+            return minEval;
+        }
+    }
+    
+    // Get all empty cells that are adjacent to an existing stone
+    function getPossibleMoves(board) {
+        const moves = [];
+        const checked = new Set();
+        const directions = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
+
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                if (board[r][c] !== null) {
+                    for (const [dr, dc] of directions) {
+                        const newR = r + dr;
+                        const newC = c + dc;
+                        if (newR >= 0 && newR < BOARD_SIZE && newC >= 0 && newC < BOARD_SIZE && board[newR][newC] === null) {
+                            const key = `${newR}-${newC}`;
+                            if (!checked.has(key)) {
+                                moves.push({ row: newR, col: newC });
+                                checked.add(key);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return moves.length > 0 ? moves : getAllEmptyCells(board);
+    }
+    
+    function getAllEmptyCells(board) {
         const emptyCells = [];
         for (let r = 0; r < BOARD_SIZE; r++) {
             for (let c = 0; c < BOARD_SIZE; c++) {
@@ -314,87 +364,99 @@
                 }
             }
         }
+        return emptyCells;
+    }
 
-        // Prioritize moves that lead to a win or block an opponent's win
-        for (const cell of emptyCells) {
-            const score = evaluatePosition(cell.row, cell.col, color, opponentColor);
-            if (score > bestScore) {
-                bestScore = score;
-                bestMove = cell;
+    function evaluateBoard(board) {
+        let score = 0;
+        score += evaluatePlayer(board, 'red') - evaluatePlayer(board, 'black');
+        return score;
+    }
+
+    function evaluatePlayer(board, color) {
+        let score = 0;
+        const opponent = (color === 'black') ? 'red' : 'black';
+
+        // Winning lines (Open 5)
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                if (board[r][c] === color) {
+                    if (checkSequence(r, c, color, 5)) return 100000;
+                }
             }
         }
 
-        return bestMove || emptyCells[Math.floor(Math.random() * emptyCells.length)];
-    }
-
-    // Evaluate a position's score for the AI
-    function evaluatePosition(row, col, myColor, opponentColor) {
-        let score = 0;
-
-        // Check for immediate win (my 5-in-a-row)
-        if (checkSequence(row, col, myColor, WIN_COUNT)) {
-            return 100000;
-        }
-
-        // Check for opponent's immediate win (block their 5-in-a-row)
-        if (checkSequence(row, col, opponentColor, WIN_COUNT)) {
-            return 90000;
-        }
-
-        // Check for my 4-in-a-row
-        if (checkSequence(row, col, myColor, WIN_COUNT - 1)) {
-            score += 1000;
-        }
-        
-        // Check for opponent's 4-in-a-row
-        if (checkSequence(row, col, opponentColor, WIN_COUNT - 1)) {
-            score += 900;
-        }
-
-        // Check for my 3-in-a-row
-        if (checkSequence(row, col, myColor, WIN_COUNT - 2)) {
-            score += 100;
-        }
-        
-        // Check for opponent's 3-in-a-row
-        if (checkSequence(row, col, opponentColor, WIN_COUNT - 2)) {
-            score += 90;
+        // Potential lines
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                if (board[r][c] === null) {
+                    // Check horizontal
+                    score += getLineScore(board, r, c, color, 0, 1, 5);
+                    // Check vertical
+                    score += getLineScore(board, r, c, color, 1, 0, 5);
+                    // Check diagonal \
+                    score += getLineScore(board, r, c, color, 1, 1, 5);
+                    // Check diagonal /
+                    score += getLineScore(board, r, c, color, 1, -1, 5);
+                }
+            }
         }
 
         return score;
     }
 
-    // Helper function to check for a sequence of stones
-    function checkSequence(row, col, color, length) {
-        const directions = [
-            [0, 1], [1, 0], [1, 1], [1, -1]
-        ];
+    function getLineScore(board, row, col, color, dr, dc, length) {
+        const opponent = (color === 'black') ? 'red' : 'black';
+        let myCount = 0;
+        let opponentCount = 0;
+        let emptyCount = 0;
+        let score = 0;
 
+        // Check forward
+        for (let i = 0; i < length; i++) {
+            const r = row + i * dr;
+            const c = col + i * dc;
+            if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE) {
+                if (board[r][c] === color) myCount++;
+                else if (board[r][c] === opponent) opponentCount++;
+                else emptyCount++;
+            }
+        }
+
+        if (opponentCount === 0) {
+            if (myCount === 4 && emptyCount >= 1) score += 10000; // Live 4
+            else if (myCount === 3 && emptyCount >= 2) score += 1000; // Live 3
+            else if (myCount === 2 && emptyCount >= 3) score += 100; // Live 2
+        }
+
+        if (myCount === 0) {
+            if (opponentCount === 4 && emptyCount >= 1) score += 9000; // Blocked 4
+            else if (opponentCount === 3 && emptyCount >= 2) score += 900; // Blocked 3
+            else if (opponentCount === 2 && emptyCount >= 3) score += 90; // Blocked 2
+        }
+        
+        return score;
+    }
+
+    function checkSequence(row, col, color, length) {
+        const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
         for (const [dr, dc] of directions) {
             let count = 1;
-            // Check forward direction
             for (let i = 1; i < length; i++) {
                 const r = row + i * dr;
                 const c = col + i * dc;
                 if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] === color) {
                     count++;
-                } else {
-                    break;
-                }
+                } else break;
             }
-            // Check backward direction
             for (let i = 1; i < length; i++) {
                 const r = row - i * dr;
                 const c = col - i * dc;
                 if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] === color) {
                     count++;
-                } else {
-                    break;
-                }
+                } else break;
             }
-            if (count >= length) {
-                return true;
-            }
+            if (count >= length) return true;
         }
         return false;
     }
@@ -406,8 +468,7 @@
 
     // Update the message box with current turn
     function updateMessage() {
-        const currentPlayer = players[turnIndex];
-        const currentPlayerName = currentPlayer === 'black' ? '당신' : `${getColorName(currentPlayer)} AI`;
+        const currentPlayerName = (currentPlayer === 'black') ? '당신' : 'AI';
         showMessage(`${currentPlayerName}의 차례입니다.`);
     }
 
@@ -421,3 +482,4 @@
 
 </body>
 </html>
+
