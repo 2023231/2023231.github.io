@@ -72,9 +72,9 @@
             <svg class="h-5 w-5 inline-block mr-2" fill="white" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10"/></svg>
             검은 돌로 플레이
         </button>
-        <button id="redButton" class="button bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-full">
-            <svg class="h-5 w-5 inline-block mr-2" fill="red" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10"/></svg>
-            빨간 돌로 플레이
+        <button id="whiteButton" class="button bg-white hover:bg-gray-100 text-gray-800 font-bold py-2 px-4 rounded-full border border-gray-300">
+            <svg class="h-5 w-5 inline-block mr-2" fill="white" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10"/></svg>
+            흰 돌로 플레이
         </button>
     </div>
 </div>
@@ -83,7 +83,7 @@
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const blackButton = document.getElementById('blackButton');
-    const redButton = document.getElementById('redButton');
+    const whiteButton = document.getElementById('whiteButton');
     const playerChoiceDiv = document.getElementById('player-choice');
     const messageBox = document.getElementById('message-box');
 
@@ -107,14 +107,14 @@
     // Initialize game with chosen color
     function initGame(color) {
         playerColor = color;
-        aiColor = (color === 'black') ? 'red' : 'black';
-        currentPlayer = playerColor; // Fix: Initialize currentPlayer
+        aiColor = (color === 'black') ? 'white' : 'black';
+        currentPlayer = playerColor;
         board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
         isGameOver = false;
         playerChoiceDiv.style.display = 'none';
         drawBoard();
         updateMessage();
-        if (playerColor === 'red') {
+        if (playerColor === 'white') {
             setTimeout(aiMove, 500);
         }
     }
@@ -508,13 +508,13 @@
     // Update the message box with current turn
     function updateMessage() {
         const currentPlayerName = (currentPlayer === playerColor) ? '당신' : 'AI';
-        const stoneColor = (currentPlayer === 'black') ? '검은 돌' : '빨간 돌';
+        const stoneColor = (currentPlayer === 'black') ? '검은 돌' : '흰 돌';
         showMessage(`${currentPlayerName}의 차례입니다 (${stoneColor}).`);
     }
 
     // Event listeners
     blackButton.addEventListener('click', () => initGame('black'));
-    redButton.addEventListener('click', () => initGame('red'));
+    whiteButton.addEventListener('click', () => initGame('white'));
     canvas.addEventListener('click', handleMove);
 
     // Initial game start
