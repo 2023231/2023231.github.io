@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ISEDOLGOMOK 오목!</title>
+    <title>최강 AI 오목 게임</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
@@ -96,6 +96,7 @@
     let board = [];
     let playerColor = null;
     let aiColor = null;
+    let currentPlayer = null;
     let isGameOver = false;
 
     // Set canvas dimensions
@@ -107,6 +108,7 @@
     function initGame(color) {
         playerColor = color;
         aiColor = (color === 'black') ? 'red' : 'black';
+        currentPlayer = playerColor; // Fix: Initialize currentPlayer
         board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
         isGameOver = false;
         playerChoiceDiv.style.display = 'none';
@@ -506,7 +508,7 @@
     // Update the message box with current turn
     function updateMessage() {
         const currentPlayerName = (currentPlayer === playerColor) ? '당신' : 'AI';
-        const stoneColor = (currentPlayer === playerColor) ? '검은 돌' : '빨간 돌';
+        const stoneColor = (currentPlayer === 'black') ? '검은 돌' : '빨간 돌';
         showMessage(`${currentPlayerName}의 차례입니다 (${stoneColor}).`);
     }
 
