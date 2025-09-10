@@ -15,6 +15,7 @@
             align-items: center;
             min-height: 100vh;
             color: #1a202c;
+            padding: 1rem;
         }
         .container {
             background-color: #ffffff;
@@ -22,7 +23,7 @@
             box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
             padding: 2rem;
             max-width: 90%;
-            width: 600px;
+            width: 700px;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -30,8 +31,9 @@
         canvas {
             border: 2px solid #4a5568;
             border-radius: 0.5rem;
-            background-color: #a07c5a; /* Wood-like background */
+            background-color: #a07c5a;
             touch-action: none;
+            cursor: pointer;
         }
         .button {
             transition: all 0.2s ease-in-out;
@@ -51,6 +53,11 @@
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        .timer-display {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #4a5568;
+        }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
@@ -58,74 +65,156 @@
 <div class="container">
     <h1 class="text-3xl font-bold text-gray-800 mb-4">최강 AI 오목 게임</h1>
     <p class="text-center text-gray-600 mb-6">
-        먼저 5개의 돌을 연결하면 승리합니다! (흑돌은 3-3, 4-4 금수)
+        먼저 5개의 돌을 연결하면 승리합니다! (흑돌은 3-3, 4-4, 6목 금수)
     </p>
+
+    <div id="game-info" class="flex justify-between items-center w-full max-w-[500px] mb-4">
+        <div class="text-center">
+            <p class="font-bold">당신</p>
+            <p id="player-time" class="timer-display">05:00</p>
+        </div>
+        <div class="text-center">
+            <p class="font-bold">AI</p>
+            <p id="ai-time" class="timer-display">05:00</p>
+        </div>
+    </div>
 
     <canvas id="gameCanvas"></canvas>
 
     <div id="message-box" class="mt-4 text-lg font-semibold text-center text-gray-700">
-        <span class="message-content">게임을 시작하려면 돌 색깔을 선택하세요.</span>
+        <span class="message-content"></span>
     </div>
 
-    <div id="player-choice" class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 mt-6 w-full justify-center">
-        <button id="blackButton" class="button bg-gray-800 hover:bg-gray-900 text-white font-bold py-2 px-4 rounded-full">
-            <svg class="h-5 w-5 inline-block mr-2" fill="white" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10"/></svg>
-            검은 돌로 플레이
-        </button>
-        <button id="whiteButton" class="button bg-white hover:bg-gray-100 text-gray-800 font-bold py-2 px-4 rounded-full border border-gray-300">
-            <svg class="h-5 w-5 inline-block mr-2" fill="white" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10"/></svg>
-            흰 돌로 플레이
+    <div id="menu-screen" class="flex flex-col items-center mt-6 w-full">
+        <p class="text-lg font-semibold mb-4">당신의 돌 색깔을 선택하세요.</p>
+        <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+            <button id="blackButton" class="button bg-gray-800 hover:bg-gray-900 text-white font-bold py-2 px-6 rounded-full">
+                <svg class="h-5 w-5 inline-block mr-2" fill="white" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10"/></svg>
+                검은 돌
+            </button>
+            <button id="whiteButton" class="button bg-white hover:bg-gray-100 text-gray-800 font-bold py-2 px-6 rounded-full border border-gray-300">
+                <svg class="h-5 w-5 inline-block mr-2" fill="black" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10"/></svg>
+                흰 돌
+            </button>
+        </div>
+        <button id="startButton" class="button mt-6 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full">
+            게임 시작
         </button>
     </div>
+
 </div>
 
 <script>
+    // --- UI Elements ---
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const blackButton = document.getElementById('blackButton');
     const whiteButton = document.getElementById('whiteButton');
-    const playerChoiceDiv = document.getElementById('player-choice');
+    const startButton = document.getElementById('startButton');
+    const menuScreen = document.getElementById('menu-screen');
     const messageBox = document.getElementById('message-box');
+    const playerTimeDisplay = document.getElementById('player-time');
+    const aiTimeDisplay = document.getElementById('ai-time');
 
+    // --- Game Constants ---
     const BOARD_SIZE = 19;
     const CELL_SIZE = 25;
     const PADDING = 25;
     const WIN_COUNT = 5;
-    const AI_SEARCH_DEPTH = 4;
+    const AI_SEARCH_DEPTH = 3; // Deeper search for stronger AI
+    const INITIAL_TIME_LIMIT = 5 * 60; // 5 minutes in seconds
 
+    // --- Game State ---
     let board = [];
-    let playerColor = null;
-    let aiColor = null;
+    let playerColor = 'black'; // Default selection
+    let aiColor = 'white';
     let currentPlayer = null;
     let isGameOver = false;
+    let playerTime = INITIAL_TIME_LIMIT;
+    let aiTime = INITIAL_TIME_LIMIT;
+    let timerInterval = null;
 
     // Set canvas dimensions
     const canvasSize = (BOARD_SIZE - 1) * CELL_SIZE + 2 * PADDING;
     canvas.width = canvasSize;
     canvas.height = canvasSize;
 
-    // Initialize game with chosen color
-    function initGame(color) {
-        playerColor = color;
-        aiColor = (color === 'black') ? 'white' : 'black';
-        currentPlayer = playerColor;
+    // --- UI Logic ---
+    function updateSelectedColor() {
+        if (playerColor === 'black') {
+            blackButton.classList.add('ring-4', 'ring-blue-500', 'ring-opacity-50');
+            whiteButton.classList.remove('ring-4', 'ring-blue-500', 'ring-opacity-50');
+        } else {
+            whiteButton.classList.add('ring-4', 'ring-blue-500', 'ring-opacity-50');
+            blackButton.classList.remove('ring-4', 'ring-blue-500', 'ring-opacity-50');
+        }
+    }
+
+    // --- Game Management ---
+    function initGame() {
+        menuScreen.style.display = 'none';
+        
+        // Reset game state
         board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
         isGameOver = false;
-        playerChoiceDiv.style.display = 'none';
+        playerTime = INITIAL_TIME_LIMIT;
+        aiTime = INITIAL_TIME_LIMIT;
+        
+        // White goes first
+        currentPlayer = 'white';
+        
         drawBoard();
         updateMessage();
+        updateTimers();
+
         if (playerColor === 'white') {
+            startTimer('player');
+            canvas.addEventListener('click', handleMove);
+        } else {
+            startTimer('ai');
             setTimeout(aiMove, 500);
         }
     }
 
-    // Draw the game board
+    // --- Timer Logic ---
+    function startTimer(color) {
+        clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
+            if (color === 'player') {
+                playerTime--;
+                if (playerTime <= 0) {
+                    endGame('ai');
+                }
+            } else {
+                aiTime--;
+                if (aiTime <= 0) {
+                    endGame('player');
+                }
+            }
+            updateTimers();
+        }, 1000);
+    }
+    
+    function stopTimer() {
+        clearInterval(timerInterval);
+    }
+
+    function updateTimers() {
+        const formatTime = (seconds) => {
+            const min = Math.floor(seconds / 60);
+            const sec = seconds % 60;
+            return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+        };
+        playerTimeDisplay.textContent = formatTime(playerTime);
+        aiTimeDisplay.textContent = formatTime(aiTime);
+    }
+
+    // --- Drawing Functions ---
     function drawBoard() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = '#a07c5a';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Draw grid lines
         ctx.strokeStyle = '#4a5568';
         ctx.lineWidth = 1;
         for (let i = 0; i < BOARD_SIZE; i++) {
@@ -140,7 +229,6 @@
             ctx.stroke();
         }
 
-        // Draw board stones
         for (let row = 0; row < BOARD_SIZE; row++) {
             for (let col = 0; col < BOARD_SIZE; col++) {
                 if (board[row][col] !== null) {
@@ -150,7 +238,6 @@
         }
     }
 
-    // Draw a single stone
     function drawStone(row, col, color) {
         const x = PADDING + col * CELL_SIZE;
         const y = PADDING + row * CELL_SIZE;
@@ -164,7 +251,6 @@
         ctx.shadowOffsetY = 2;
         ctx.fill();
 
-        // Add a highlight for visual effect
         ctx.beginPath();
         ctx.arc(x - CELL_SIZE / 6, y - CELL_SIZE / 6, CELL_SIZE / 5, 0, 2 * Math.PI);
         ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
@@ -176,10 +262,9 @@
         ctx.shadowOffsetY = 0;
     }
 
-    // Handle player's move
+    // --- Game Logic ---
     function handleMove(event) {
-        if (isGameOver || !playerColor) return;
-        if (currentPlayer !== playerColor) return;
+        if (isGameOver || currentPlayer !== playerColor) return;
 
         const rect = canvas.getBoundingClientRect();
         const x = event.clientX - rect.left;
@@ -190,7 +275,7 @@
 
         if (row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE && board[row][col] === null) {
             if (playerColor === 'black' && checkForbiddenMove(row, col, 'black')) {
-                showMessage("금수(3-3 또는 4-4)는 둘 수 없습니다.");
+                showMessage("금수(3-3, 4-4 또는 6목)는 둘 수 없습니다.");
                 return;
             }
             placeStone(row, col, playerColor);
@@ -199,7 +284,6 @@
         }
     }
 
-    // Place a stone and check for game over
     function placeStone(row, col, color) {
         board[row][col] = color;
         drawBoard();
@@ -209,24 +293,31 @@
         } else if (isBoardFull()) {
             endGame('draw');
         } else {
-            currentPlayer = (color === playerColor) ? aiColor : playerColor;
-            updateMessage();
-            if (currentPlayer === aiColor) {
-                setTimeout(aiMove, 500);
-            }
+            switchTurn();
         }
     }
 
-    // Check for a winning condition (exactly 5 stones)
+    function switchTurn() {
+        stopTimer();
+        currentPlayer = (currentPlayer === playerColor) ? aiColor : playerColor;
+        updateMessage();
+        if (currentPlayer === aiColor) {
+            startTimer('ai');
+            setTimeout(aiMove, 500);
+        } else {
+            startTimer('player');
+        }
+    }
+
     function checkWin(row, col, color) {
         const directions = [
             [0, 1], [1, 0], [1, 1], [1, -1]
         ];
-
+        
         for (const [dr, dc] of directions) {
             let count = 1;
-            // Count forward
-            for (let i = 1; i < WIN_COUNT + 2; i++) { // Check up to 6 for 6-mok rule
+            // Count forward and backward
+            for (let i = 1; i <= WIN_COUNT; i++) {
                 const r = row + i * dr;
                 const c = col + i * dc;
                 if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] === color) {
@@ -235,8 +326,7 @@
                     break;
                 }
             }
-            // Count backward
-            for (let i = 1; i < WIN_COUNT + 2; i++) {
+            for (let i = 1; i <= WIN_COUNT; i++) {
                 const r = row - i * dr;
                 const c = col - i * dc;
                 if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] === color) {
@@ -245,22 +335,19 @@
                     break;
                 }
             }
-            // Check for 5-in-a-row exactly
-            if (count === WIN_COUNT) {
-                return true;
-            }
+            if (count === WIN_COUNT) return true;
         }
         return false;
     }
-
-    // Check for 3-3 and 4-4 forbidden moves (for black only)
+    
     function checkForbiddenMove(row, col, color) {
         if (color !== 'black') return false;
         
         const tempBoard = JSON.parse(JSON.stringify(board));
         tempBoard[row][col] = color;
-
-        const getLineCount = (r, c, dr, dc) => {
+        
+        // Helper to check a line in one direction
+        const checkLine = (r, c, dr, dc) => {
             let count = 0;
             while(r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && tempBoard[r][c] === color) {
                 count++;
@@ -270,47 +357,52 @@
             return count;
         };
 
-        const getOpenEnds = (r, c, dr, dc, count) => {
-            const r1 = r + dr * count;
-            const c1 = c + dc * count;
-            const r2 = r - dr;
-            const c2 = c - dc;
-            let open = 0;
-            if (r1 >= 0 && r1 < BOARD_SIZE && c1 >= 0 && c1 < BOARD_SIZE && tempBoard[r1][c1] === null) open++;
-            if (r2 >= 0 && r2 < BOARD_SIZE && c2 >= 0 && c2 < BOARD_SIZE && tempBoard[r2][c2] === null) open++;
-            return open;
-        };
-        
         let threeCount = 0;
         let fourCount = 0;
+        let sixCount = 0;
 
         const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
         for (const [dr, dc] of directions) {
-            const count1 = getLineCount(row, col, dr, dc) + getLineCount(row, col, -dr, -dc) - 1;
-            const openEnds = getOpenEnds(row, col, dr, dc, count1) + getOpenEnds(row, col, -dr, -dc, count1);
-            if (count1 === 3 && openEnds === 2) threeCount++;
-            if (count1 === 4 && openEnds === 2) fourCount++;
+            const count1 = checkLine(row, col, dr, dc);
+            const count2 = checkLine(row, col, -dr, -dc);
+            const total = count1 + count2 - 1;
+
+            if (total === 5) { // 6목
+                sixCount++;
+            }
+            
+            // Check for open ends
+            const r1 = row + count1 * dr;
+            const c1 = col + count1 * dc;
+            const r2 = row - count2 * dr;
+            const c2 = col - count2 * dc;
+            
+            const open1 = (r1 >= 0 && r1 < BOARD_SIZE && c1 >= 0 && c1 < BOARD_SIZE && tempBoard[r1][c1] === null);
+            const open2 = (r2 >= 0 && r2 < BOARD_SIZE && c2 >= 0 && c2 < BOARD_SIZE && tempBoard[r2][c2] === null);
+
+            if (total === 3 && open1 && open2) {
+                threeCount++;
+            }
+            if (total === 4 && open1 && open2) {
+                fourCount++;
+            }
         }
         
-        return threeCount > 1 || fourCount > 1;
+        return threeCount > 1 || fourCount > 1 || sixCount > 0;
     }
 
-
-    // Check if the board is full
     function isBoardFull() {
         for (let row = 0; row < BOARD_SIZE; row++) {
             for (let col = 0; col < BOARD_SIZE; col++) {
-                if (board[row][col] === null) {
-                    return false;
-                }
+                if (board[row][col] === null) return false;
             }
         }
         return true;
     }
 
-    // End the game
     function endGame(winner) {
         isGameOver = true;
+        stopTimer();
         let message = '';
         if (winner === 'draw') {
             message = '무승부입니다!';
@@ -319,12 +411,14 @@
             message = `${winnerName}의 승리입니다! 🎉`;
         }
         showMessage(message);
+        setTimeout(() => {
+            menuScreen.style.display = 'flex';
+        }, 3000);
     }
 
     // --- AI Logic (Minimax with Alpha-Beta Pruning) ---
     function aiMove() {
         if (isGameOver) return;
-        
         showMessage("AI가 생각 중입니다...");
         
         const bestMove = findBestMove(board, AI_SEARCH_DEPTH, aiColor);
@@ -346,8 +440,7 @@
         for (const move of emptyCells) {
             board[move.row][move.col] = color;
             const score = minimax(board, depth - 1, false, alpha, beta);
-            board[move.row][move.col] = null; // Undo move
-
+            board[move.row][move.col] = null;
             if (score > bestScore) {
                 bestScore = score;
                 bestMove = move;
@@ -359,12 +452,11 @@
 
     function minimax(board, depth, isMaximizingPlayer, alpha, beta) {
         const score = evaluateBoard(board);
-        if (depth === 0 || isGameOver || Math.abs(score) > 1000000) {
+        if (depth === 0 || isGameOver || Math.abs(score) > 100000) {
             return score;
         }
 
         const color = isMaximizingPlayer ? aiColor : playerColor;
-        
         const possibleMoves = getPossibleMoves(board);
 
         if (isMaximizingPlayer) {
@@ -392,7 +484,6 @@
         }
     }
     
-    // Get all empty cells that are adjacent to an existing stone
     function getPossibleMoves(board) {
         const moves = [];
         const checked = new Set();
@@ -460,9 +551,7 @@
                     for (const [dr, dc] of directions) {
                         let myCount = 0;
                         let opponentCount = 0;
-                        let emptyCount = 0;
                         
-                        // Check a window of 5 around the empty cell
                         for (let i = -4; i <= 4; i++) {
                             const newR = r + i * dr;
                             const newC = c + i * dc;
@@ -489,7 +578,6 @@
             }
         }
         
-        // Final win check for immediate win/loss
         for(let r = 0; r < BOARD_SIZE; r++) {
             for(let c = 0; c < BOARD_SIZE; c++) {
                 if(board[r][c] === color && checkWin(r, c, color)) return patterns['5'];
@@ -500,25 +588,36 @@
         return score;
     }
 
-    // Show messages to the user
+    // --- Message and UI Updates ---
     function showMessage(text) {
         messageBox.innerHTML = `<span class="message-content">${text}</span>`;
     }
 
-    // Update the message box with current turn
     function updateMessage() {
         const currentPlayerName = (currentPlayer === playerColor) ? '당신' : 'AI';
         const stoneColor = (currentPlayer === 'black') ? '검은 돌' : '흰 돌';
         showMessage(`${currentPlayerName}의 차례입니다 (${stoneColor}).`);
     }
 
-    // Event listeners
-    blackButton.addEventListener('click', () => initGame('black'));
-    whiteButton.addEventListener('click', () => initGame('white'));
-    canvas.addEventListener('click', handleMove);
+    // --- Event Listeners ---
+    blackButton.addEventListener('click', () => {
+        playerColor = 'black';
+        aiColor = 'white';
+        updateSelectedColor();
+    });
+    
+    whiteButton.addEventListener('click', () => {
+        playerColor = 'white';
+        aiColor = 'black';
+        updateSelectedColor();
+    });
 
-    // Initial game start
-    initGame(null); // Wait for user to choose a color
+    startButton.addEventListener('click', initGame);
+    
+    // Initial setup
+    updateSelectedColor();
+    showMessage('당신의 돌 색깔을 선택하고 게임 시작을 눌러주세요.');
+    
 </script>
 
 </body>
