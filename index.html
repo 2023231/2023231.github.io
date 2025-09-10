@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>최강 AI 오목 게임</title>
+    <!-- Tailwind CSS CDN을 포함하여 스타일링에 사용합니다. -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
@@ -105,7 +106,8 @@
 </div>
 
 <script>
-    // --- UI Elements ---
+    // --- UI 요소 ---
+    // HTML에서 필요한 요소들을 가져옵니다.
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const blackButton = document.getElementById('blackButton');
@@ -116,30 +118,32 @@
     const playerTimeDisplay = document.getElementById('player-time');
     const aiTimeDisplay = document.getElementById('ai-time');
 
-    // --- Game Constants ---
-    const BOARD_SIZE = 19;
-    const CELL_SIZE = 25;
-    const PADDING = 25;
-    const WIN_COUNT = 5;
-    const AI_SEARCH_DEPTH = 3; // Deeper search for stronger AI
-    const INITIAL_TIME_LIMIT = 5 * 60; // 5 minutes in seconds
+    // --- 게임 상수 ---
+    // 게임판의 크기, 돌의 크기 등을 정의합니다.
+    const BOARD_SIZE = 19; // 오목판 격자 크기
+    const CELL_SIZE = 25; // 한 칸의 너비/높이
+    const PADDING = 25; // 오목판 주변 여백
+    const WIN_COUNT = 5; // 승리하는 데 필요한 돌의 수
+    const AI_SEARCH_DEPTH = 4; // AI의 탐색 깊이. 숫자가 높을수록 AI가 더 강력해집니다.
+    const INITIAL_TIME_LIMIT = 5 * 60; // 5분 in seconds
 
-    // --- Game State ---
-    let board = [];
-    let playerColor = 'black'; // Default selection
-    let aiColor = 'white';
-    let currentPlayer = null;
-    let isGameOver = false;
-    let playerTime = INITIAL_TIME_LIMIT;
-    let aiTime = INITIAL_TIME_LIMIT;
-    let timerInterval = null;
+    // --- 게임 상태 변수 ---
+    let board = []; // 게임판의 상태를 저장하는 2차원 배열
+    let playerColor = 'black'; // 사용자가 선택한 돌 색깔
+    let aiColor = 'white'; // AI의 돌 색깔
+    let currentPlayer = null; // 현재 턴을 가진 플레이어
+    let isGameOver = false; // 게임 종료 여부
+    let playerTime = INITIAL_TIME_LIMIT; // 사용자 남은 시간
+    let aiTime = INITIAL_TIME_LIMIT; // AI 남은 시간
+    let timerInterval = null; // 타이머를 위한 변수
 
-    // Set canvas dimensions
+    // 캔버스 크기 설정
     const canvasSize = (BOARD_SIZE - 1) * CELL_SIZE + 2 * PADDING;
     canvas.width = canvasSize;
     canvas.height = canvasSize;
 
-    // --- UI Logic ---
+    // --- UI 로직 ---
+    // 선택된 돌 색깔에 따라 버튼 스타일을 업데이트합니다.
     function updateSelectedColor() {
         if (playerColor === 'black') {
             blackButton.classList.add('ring-4', 'ring-blue-500', 'ring-opacity-50');
@@ -150,23 +154,25 @@
         }
     }
 
-    // --- Game Management ---
+    // --- 게임 관리 ---
+    // 게임을 초기 상태로 설정하고 시작합니다.
     function initGame() {
         menuScreen.style.display = 'none';
         
-        // Reset game state
+        // 게임 상태 초기화
         board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
         isGameOver = false;
         playerTime = INITIAL_TIME_LIMIT;
         aiTime = INITIAL_TIME_LIMIT;
         
-        // White goes first
+        // 백돌(흰색)이 먼저 시작합니다.
         currentPlayer = 'white';
         
         drawBoard();
         updateMessage();
         updateTimers();
 
+        // 사용자가 흰돌을 선택했으면 사용자 먼저, 아니면 AI 먼저 시작
         if (playerColor === 'white') {
             startTimer('player');
             canvas.addEventListener('click', handleMove);
@@ -176,29 +182,32 @@
         }
     }
 
-    // --- Timer Logic ---
+    // --- 타이머 로직 ---
+    // 현재 플레이어의 타이머를 시작합니다.
     function startTimer(color) {
         clearInterval(timerInterval);
         timerInterval = setInterval(() => {
             if (color === 'player') {
                 playerTime--;
                 if (playerTime <= 0) {
-                    endGame('ai');
+                    endGame('ai'); // 시간 초과 시 AI 승리
                 }
             } else {
                 aiTime--;
                 if (aiTime <= 0) {
-                    endGame('player');
+                    endGame('player'); // 시간 초과 시 사용자 승리
                 }
             }
             updateTimers();
         }, 1000);
     }
     
+    // 타이머를 멈춥니다.
     function stopTimer() {
         clearInterval(timerInterval);
     }
 
+    // 화면에 남은 시간을 업데이트합니다.
     function updateTimers() {
         const formatTime = (seconds) => {
             const min = Math.floor(seconds / 60);
@@ -209,7 +218,8 @@
         aiTimeDisplay.textContent = formatTime(aiTime);
     }
 
-    // --- Drawing Functions ---
+    // --- 그리기 함수 ---
+    // 오목판을 그립니다.
     function drawBoard() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = '#a07c5a';
@@ -217,6 +227,7 @@
 
         ctx.strokeStyle = '#4a5568';
         ctx.lineWidth = 1;
+        // 격자 선 그리기
         for (let i = 0; i < BOARD_SIZE; i++) {
             ctx.beginPath();
             ctx.moveTo(PADDING + i * CELL_SIZE, PADDING);
@@ -229,6 +240,7 @@
             ctx.stroke();
         }
 
+        // 돌 그리기
         for (let row = 0; row < BOARD_SIZE; row++) {
             for (let col = 0; col < BOARD_SIZE; col++) {
                 if (board[row][col] !== null) {
@@ -238,6 +250,7 @@
         }
     }
 
+    // 지정된 위치에 돌을 그립니다.
     function drawStone(row, col, color) {
         const x = PADDING + col * CELL_SIZE;
         const y = PADDING + row * CELL_SIZE;
@@ -262,7 +275,8 @@
         ctx.shadowOffsetY = 0;
     }
 
-    // --- Game Logic ---
+    // --- 게임 로직 ---
+    // 사용자의 클릭을 처리하여 돌을 놓습니다.
     function handleMove(event) {
         if (isGameOver || currentPlayer !== playerColor) return;
 
@@ -274,7 +288,8 @@
         const row = Math.round((y - PADDING) / CELL_SIZE);
 
         if (row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE && board[row][col] === null) {
-            if (playerColor === 'black' && checkForbiddenMove(row, col, 'black')) {
+            // 흑돌일 경우 금수 체크
+            if (playerColor === 'black' && checkForbiddenMove(row, col)) {
                 showMessage("금수(3-3, 4-4 또는 6목)는 둘 수 없습니다.");
                 return;
             }
@@ -284,6 +299,7 @@
         }
     }
 
+    // 지정된 위치에 돌을 놓고, 승리 여부를 확인합니다.
     function placeStone(row, col, color) {
         board[row][col] = color;
         drawBoard();
@@ -297,6 +313,7 @@
         }
     }
 
+    // 턴을 전환하고 다음 플레이어에게 알립니다.
     function switchTurn() {
         stopTimer();
         currentPlayer = (currentPlayer === playerColor) ? aiColor : playerColor;
@@ -309,6 +326,7 @@
         }
     }
 
+    // 승리 조건을 확인합니다.
     function checkWin(row, col, color) {
         const directions = [
             [0, 1], [1, 0], [1, 1], [1, -1]
@@ -316,7 +334,7 @@
         
         for (const [dr, dc] of directions) {
             let count = 1;
-            // Count forward and backward
+            // 앞뒤로 돌의 수를 셉니다.
             for (let i = 1; i <= WIN_COUNT; i++) {
                 const r = row + i * dr;
                 const c = col + i * dc;
@@ -340,57 +358,68 @@
         return false;
     }
     
-    function checkForbiddenMove(row, col, color) {
-        if (color !== 'black') return false;
-        
+    // 흑돌의 금수(3-3, 4-4, 6목)를 확인합니다.
+    function checkForbiddenMove(row, col) {
+        // 임시 보드를 만들어 금수 여부를 시뮬레이션합니다.
         const tempBoard = JSON.parse(JSON.stringify(board));
-        tempBoard[row][col] = color;
-        
-        // Helper to check a line in one direction
-        const checkLine = (r, c, dr, dc) => {
-            let count = 0;
-            while(r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && tempBoard[r][c] === color) {
-                count++;
-                r += dr;
-                c += dc;
-            }
-            return count;
-        };
+        tempBoard[row][col] = 'black';
 
         let threeCount = 0;
         let fourCount = 0;
-        let sixCount = 0;
 
         const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
-        for (const [dr, dc] of directions) {
-            const count1 = checkLine(row, col, dr, dc);
-            const count2 = checkLine(row, col, -dr, -dc);
-            const total = count1 + count2 - 1;
-
-            if (total === 5) { // 6목
-                sixCount++;
-            }
-            
-            // Check for open ends
-            const r1 = row + count1 * dr;
-            const c1 = col + count1 * dc;
-            const r2 = row - count2 * dr;
-            const c2 = col - count2 * dc;
-            
-            const open1 = (r1 >= 0 && r1 < BOARD_SIZE && c1 >= 0 && c1 < BOARD_SIZE && tempBoard[r1][c1] === null);
-            const open2 = (r2 >= 0 && r2 < BOARD_SIZE && c2 >= 0 && c2 < BOARD_SIZE && tempBoard[r2][c2] === null);
-
-            if (total === 3 && open1 && open2) {
-                threeCount++;
-            }
-            if (total === 4 && open1 && open2) {
-                fourCount++;
-            }
-        }
         
-        return threeCount > 1 || fourCount > 1 || sixCount > 0;
+        // 6목 (6개 이상의 돌) 체크
+        for (const [dr, dc] of directions) {
+            let count = 1;
+            let r = row, c = col;
+            while (r + dr >= 0 && r + dr < BOARD_SIZE && c + dc >= 0 && c + dc < BOARD_SIZE && tempBoard[r + dr][c + dc] === 'black') {
+                count++;
+                r += dr;
+            }
+            r = row, c = col;
+            while (r - dr >= 0 && r - dr < BOARD_SIZE && c - dc >= 0 && c - dc < BOARD_SIZE && tempBoard[r - dr][c - dc] === 'black') {
+                count++;
+                r -= dr;
+            }
+            if (count > WIN_COUNT) return true;
+        }
+
+        // 3-3, 4-4 체크
+        for (const [dr, dc] of directions) {
+            let lineLength = 1;
+            let openEnds = 0;
+            
+            // 앞 방향 체크
+            let r = row, c = col;
+            if (r + dr >= 0 && r + dr < BOARD_SIZE && c + dc >= 0 && c + dc < BOARD_SIZE && tempBoard[r + dr][c + dc] === null) {
+                openEnds++;
+            }
+            while (r - dr >= 0 && r - dr < BOARD_SIZE && c - dc >= 0 && c - dc < BOARD_SIZE && tempBoard[r - dr][c - dc] === 'black') {
+                lineLength++;
+                r -= dr;
+            }
+            if (r - dr >= 0 && r - dr < BOARD_SIZE && c - dc >= 0 && c - dc < BOARD_SIZE && tempBoard[r - dr][c - dc] === null) {
+                openEnds++;
+            }
+            
+            // 뒷 방향 체크
+            r = row, c = col;
+            while (r + dr >= 0 && r + dr < BOARD_SIZE && c + dc >= 0 && c + dc < BOARD_SIZE && tempBoard[r + dr][c + dc] === 'black') {
+                lineLength++;
+                r += dr;
+            }
+            if (r + dr >= 0 && r + dr < BOARD_SIZE && c + dc >= 0 && c + dc < BOARD_SIZE && tempBoard[r + dr][c + dc] === null) {
+                openEnds++;
+            }
+            
+            if (lineLength === 3 && openEnds === 2) threeCount++;
+            if (lineLength === 4 && openEnds === 2) fourCount++;
+        }
+        return threeCount >= 2 || fourCount >= 2;
     }
 
+    // 게임판이 가득 찼는지 확인합니다.
     function isBoardFull() {
         for (let row = 0; row < BOARD_SIZE; row++) {
             for (let col = 0; col < BOARD_SIZE; col++) {
@@ -400,6 +429,7 @@
         return true;
     }
 
+    // 게임을 종료하고 결과를 표시합니다.
     function endGame(winner) {
         isGameOver = true;
         stopTimer();
@@ -412,11 +442,12 @@
         }
         showMessage(message);
         setTimeout(() => {
-            menuScreen.style.display = 'flex';
+            menuScreen.style.display = 'flex'; // 3초 후 메뉴 화면으로 돌아감
         }, 3000);
     }
 
-    // --- AI Logic (Minimax with Alpha-Beta Pruning) ---
+    // --- AI 로직 (Minimax with Alpha-Beta Pruning) ---
+    // AI가 최적의 수를 찾아서 둡니다.
     function aiMove() {
         if (isGameOver) return;
         showMessage("AI가 생각 중입니다...");
@@ -429,6 +460,7 @@
         }
     }
 
+    // AI의 최적의 수를 찾는 Minimax 알고리즘의 시작점
     function findBestMove(board, depth, color) {
         let bestScore = -Infinity;
         let bestMove = null;
@@ -436,6 +468,7 @@
         let beta = Infinity;
 
         const emptyCells = getPossibleMoves(board);
+        if (emptyCells.length === 0) return null;
 
         for (const move of emptyCells) {
             board[move.row][move.col] = color;
@@ -450,8 +483,10 @@
         return bestMove;
     }
 
+    // 재귀적으로 최적의 수를 찾는 Minimax 함수
     function minimax(board, depth, isMaximizingPlayer, alpha, beta) {
         const score = evaluateBoard(board);
+        // 게임 종료, 깊이 한계 도달, 또는 승패가 결정되면 현재 점수 반환
         if (depth === 0 || isGameOver || Math.abs(score) > 100000) {
             return score;
         }
@@ -467,7 +502,7 @@
                 board[move.row][move.col] = null;
                 maxEval = Math.max(maxEval, eval);
                 alpha = Math.max(alpha, eval);
-                if (beta <= alpha) break;
+                if (beta <= alpha) break; // Alpha-Beta Pruning
             }
             return maxEval;
         } else {
@@ -478,12 +513,13 @@
                 board[move.row][move.col] = null;
                 minEval = Math.min(minEval, eval);
                 beta = Math.min(beta, eval);
-                if (beta <= alpha) break;
+                if (beta <= alpha) break; // Alpha-Beta Pruning
             }
             return minEval;
         }
     }
     
+    // 현재 놓인 돌 주변의 유효한 빈 칸을 찾습니다.
     function getPossibleMoves(board) {
         const moves = [];
         const checked = new Set();
@@ -511,6 +547,7 @@
         return moves.length > 0 ? moves : getAllEmptyCells(board);
     }
     
+    // 모든 빈 칸을 배열로 반환합니다.
     function getAllEmptyCells(board) {
         const emptyCells = [];
         for (let r = 0; r < BOARD_SIZE; r++) {
@@ -523,12 +560,14 @@
         return emptyCells;
     }
 
+    // 현재 게임판의 점수를 평가합니다.
     function evaluateBoard(board) {
         let score = 0;
         score += evaluatePlayer(board, aiColor) - evaluatePlayer(board, playerColor);
         return score;
     }
 
+    // 특정 플레이어의 게임판 점수를 평가하는 함수
     function evaluatePlayer(board, color) {
         let score = 0;
         const opponent = (color === aiColor) ? playerColor : aiColor;
@@ -545,6 +584,7 @@
 
         const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
 
+        // 빈 칸을 기준으로 주변 패턴을 평가하여 점수를 매깁니다.
         for (let r = 0; r < BOARD_SIZE; r++) {
             for (let c = 0; c < BOARD_SIZE; c++) {
                 if (board[r][c] === null) {
@@ -578,6 +618,7 @@
             }
         }
         
+        // 5목 승리 패턴이 있는지 확인합니다.
         for(let r = 0; r < BOARD_SIZE; r++) {
             for(let c = 0; c < BOARD_SIZE; c++) {
                 if(board[r][c] === color && checkWin(r, c, color)) return patterns['5'];
@@ -588,33 +629,38 @@
         return score;
     }
 
-    // --- Message and UI Updates ---
+    // --- 메시지 및 UI 업데이트 ---
+    // 메시지 박스에 텍스트를 표시합니다.
     function showMessage(text) {
         messageBox.innerHTML = `<span class="message-content">${text}</span>`;
     }
 
+    // 현재 턴에 맞는 메시지를 표시합니다.
     function updateMessage() {
         const currentPlayerName = (currentPlayer === playerColor) ? '당신' : 'AI';
         const stoneColor = (currentPlayer === 'black') ? '검은 돌' : '흰 돌';
         showMessage(`${currentPlayerName}의 차례입니다 (${stoneColor}).`);
     }
 
-    // --- Event Listeners ---
+    // --- 이벤트 리스너 ---
+    // 흑돌 버튼 클릭 이벤트
     blackButton.addEventListener('click', () => {
         playerColor = 'black';
         aiColor = 'white';
         updateSelectedColor();
     });
     
+    // 흰돌 버튼 클릭 이벤트
     whiteButton.addEventListener('click', () => {
         playerColor = 'white';
         aiColor = 'black';
         updateSelectedColor();
     });
 
+    // 게임 시작 버튼 클릭 이벤트
     startButton.addEventListener('click', initGame);
     
-    // Initial setup
+    // 초기 설정
     updateSelectedColor();
     showMessage('당신의 돌 색깔을 선택하고 게임 시작을 눌러주세요.');
     
