@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 오목 게임</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: #1a202c;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            max-width: 90%;
+            width: 500px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            border: 2px solid #4a5568;
+            border-radius: 0.5rem;
+            background-color: #e2e8f0;
+            touch-action: none; /* Prevent default touch actions */
+        }
+        .button {
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+        #message-box {
+            min-height: 2.5rem;
+        }
+        .message-content {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+<div class="container">
+    <h1 class="text-3xl font-bold text-gray-800 mb-4">AI 오목 게임</h1>
+    <p class="text-center text-gray-600 mb-6">
+        50% 확률로 돌을 둘 수 있습니다. 5개의 돌을 먼저 연결하면 승리합니다!
+    </p>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="message-box" class="mt-4 text-lg font-semibold text-center text-gray-700">
+        <span class="message-content">게임을 시작하려면 '새 게임' 버튼을 클릭하세요.</span>
+    </div>
+
+    <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 mt-6 w-full justify-center">
+        <button id="newGameButton" class="button bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full">
+            새 게임
+        </button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const newGameButton = document.getElementById('newGameButton');
+    const messageBox = document.getElementById('message-box');
+
+    const BOARD_SIZE = 30;
+    const CELL_SIZE = 15;
+    const PADDING = 20;
+    const players = ['black', 'red', 'blue'];
+    const aiPlayers = ['red', 'blue'];
+    const WIN_COUNT = 5;
+    const PROBABILITY = 0.5;
+
+    let board = [];
+    let turnIndex = 0;
+    let isGameOver = false;
+
+    // Set canvas dimensions
+    const canvasSize = (BOARD_SIZE - 1) * CELL_SIZE + 2 * PADDING;
+    canvas.width = canvasSize;
+    canvas.height = canvasSize;
+
+    // Initialize game
+    function initGame() {
+        board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
+        turnIndex = 0;
+        isGameOver = false;
+        drawBoard();
+        updateMessage();
+    }
+
+    // Draw the game board
+    function drawBoard() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw grid lines
+        ctx.strokeStyle = '#4a5568';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < BOARD_SIZE; i++) {
+            ctx.beginPath();
+            ctx.moveTo(PADDING + i * CELL_SIZE, PADDING);
+            ctx.lineTo(PADDING + i * CELL_SIZE, PADDING + (BOARD_SIZE - 1) * CELL_SIZE);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(PADDING, PADDING + i * CELL_SIZE);
+            ctx.lineTo(PADDING + (BOARD_SIZE - 1) * CELL_SIZE, PADDING + i * CELL_SIZE);
+            ctx.stroke();
+        }
+
+        // Draw board stones
+        for (let row = 0; row < BOARD_SIZE; row++) {
+            for (let col = 0; col < BOARD_SIZE; col++) {
+                if (board[row][col] !== null) {
+                    drawStone(row, col, board[row][col]);
+                }
+            }
+        }
+    }
+
+    // Draw a single stone
+    function drawStone(row, col, color) {
+        const x = PADDING + col * CELL_SIZE;
+        const y = PADDING + row * CELL_SIZE;
+
+        ctx.beginPath();
+        ctx.arc(x, y, CELL_SIZE / 2 - 2, 0, 2 * Math.PI);
+        ctx.fillStyle = color;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+        ctx.shadowBlur = 5;
+        ctx.shadowOffsetX = 2;
+        ctx.shadowOffsetY = 2;
+        ctx.fill();
+
+        // Add a highlight for visual effect
+        ctx.beginPath();
+        ctx.arc(x - CELL_SIZE / 6, y - CELL_SIZE / 6, CELL_SIZE / 5, 0, 2 * Math.PI);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.fill();
+
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+    }
+
+    // Handle player's move
+    function handleMove(event) {
+        if (players[turnIndex] !== 'black' || isGameOver) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+
+        const col = Math.round((x - PADDING) / CELL_SIZE);
+        const row = Math.round((y - PADDING) / CELL_SIZE);
+
+        if (row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE && board[row][col] === null) {
+            placeStone(row, col, 'black');
+        } else if (board[row][col] !== null) {
+            showMessage("이미 돌이 있는 곳에는 둘 수 없습니다.");
+        }
+    }
+
+    // Place a stone and check for game over
+    function placeStone(row, col, color) {
+        if (Math.random() >= PROBABILITY) {
+            showMessage(`${getColorName(color)} 돌을 놓는 데 실패했습니다.`);
+            turnIndex = (turnIndex + 1) % players.length;
+            const nextPlayer = players[turnIndex];
+            if (aiPlayers.includes(nextPlayer)) {
+                setTimeout(() => aiMove(nextPlayer), 500);
+            }
+            return;
+        }
+        
+        board[row][col] = color;
+        drawBoard();
+        
+        if (checkWin(row, col, color)) {
+            endGame(color);
+        } else if (isBoardFull()) {
+            endGame('draw');
+        } else {
+            turnIndex = (turnIndex + 1) % players.length;
+            const nextPlayer = players[turnIndex];
+            updateMessage();
+            if (aiPlayers.includes(nextPlayer)) {
+                setTimeout(() => aiMove(nextPlayer), 500);
+            }
+        }
+    }
+
+    // Get Korean color name
+    function getColorName(color) {
+      if (color === 'red') return '빨간';
+      if (color === 'blue') return '파란';
+      if (color === 'black') return '검은';
+      return '알 수 없는';
+    }
+
+    // Check for a winning condition
+    function checkWin(row, col, color) {
+        const directions = [
+            [0, 1], [1, 0], [1, 1], [1, -1] // Horizontal, Vertical, Diagonal (\), Diagonal (/)
+        ];
+
+        for (const [dr, dc] of directions) {
+            let count = 1;
+            // Check forward direction
+            for (let i = 1; i < WIN_COUNT; i++) {
+                const r = row + i * dr;
+                const c = col + i * dc;
+                if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] === color) {
+                    count++;
+                } else {
+                    break;
+                }
+            }
+            // Check backward direction
+            for (let i = 1; i < WIN_COUNT; i++) {
+                const r = row - i * dr;
+                const c = col - i * dc;
+                if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] === color) {
+                    count++;
+                } else {
+                    break;
+                }
+            }
+            if (count >= WIN_COUNT) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Check if the board is full
+    function isBoardFull() {
+        for (let row = 0; row < BOARD_SIZE; row++) {
+            for (let col = 0; col < BOARD_SIZE; col++) {
+                if (board[row][col] === null) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    // End the game
+    function endGame(winner) {
+        isGameOver = true;
+        let message = '';
+        if (winner === 'draw') {
+            message = '무승부입니다!';
+        } else {
+            const winnerName = winner === 'black' ? '당신' : `${getColorName(winner)} AI`;
+            message = `${winnerName}의 승리입니다! 🎉`;
+        }
+        showMessage(message);
+    }
+
+    // --- AI Logic ---
+    function aiMove(color) {
+        if (isGameOver) return;
+        
+        const emptyCells = [];
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                if (board[r][c] === null) {
+                    emptyCells.push({ row: r, col: c });
+                }
+            }
+        }
+
+        if (emptyCells.length > 0) {
+            const move = getBestMove(color);
+            placeStone(move.row, move.col, color);
+        } else {
+            endGame('draw');
+        }
+    }
+
+    // Simple AI to find the best move
+    function getBestMove(color) {
+        let bestScore = -1;
+        let bestMove = null;
+
+        const opponentColor = players.find(p => p !== color && aiPlayers.includes(p));
+
+        const emptyCells = [];
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                if (board[r][c] === null) {
+                    emptyCells.push({ row: r, col: c });
+                }
+            }
+        }
+
+        // Prioritize moves that lead to a win or block an opponent's win
+        for (const cell of emptyCells) {
+            const score = evaluatePosition(cell.row, cell.col, color, opponentColor);
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = cell;
+            }
+        }
+
+        return bestMove || emptyCells[Math.floor(Math.random() * emptyCells.length)];
+    }
+
+    // Evaluate a position's score for the AI
+    function evaluatePosition(row, col, myColor, opponentColor) {
+        let score = 0;
+
+        // Check for immediate win (my 5-in-a-row)
+        if (checkSequence(row, col, myColor, WIN_COUNT)) {
+            return 100000;
+        }
+
+        // Check for opponent's immediate win (block their 5-in-a-row)
+        if (checkSequence(row, col, opponentColor, WIN_COUNT)) {
+            return 90000;
+        }
+
+        // Check for my 4-in-a-row
+        if (checkSequence(row, col, myColor, WIN_COUNT - 1)) {
+            score += 1000;
+        }
+        
+        // Check for opponent's 4-in-a-row
+        if (checkSequence(row, col, opponentColor, WIN_COUNT - 1)) {
+            score += 900;
+        }
+
+        // Check for my 3-in-a-row
+        if (checkSequence(row, col, myColor, WIN_COUNT - 2)) {
+            score += 100;
+        }
+        
+        // Check for opponent's 3-in-a-row
+        if (checkSequence(row, col, opponentColor, WIN_COUNT - 2)) {
+            score += 90;
+        }
+
+        return score;
+    }
+
+    // Helper function to check for a sequence of stones
+    function checkSequence(row, col, color, length) {
+        const directions = [
+            [0, 1], [1, 0], [1, 1], [1, -1]
+        ];
+
+        for (const [dr, dc] of directions) {
+            let count = 1;
+            // Check forward direction
+            for (let i = 1; i < length; i++) {
+                const r = row + i * dr;
+                const c = col + i * dc;
+                if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] === color) {
+                    count++;
+                } else {
+                    break;
+                }
+            }
+            // Check backward direction
+            for (let i = 1; i < length; i++) {
+                const r = row - i * dr;
+                const c = col - i * dc;
+                if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] === color) {
+                    count++;
+                } else {
+                    break;
+                }
+            }
+            if (count >= length) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Show messages to the user
+    function showMessage(text) {
+        messageBox.innerHTML = `<span class="message-content">${text}</span>`;
+    }
+
+    // Update the message box with current turn
+    function updateMessage() {
+        const currentPlayer = players[turnIndex];
+        const currentPlayerName = currentPlayer === 'black' ? '당신' : `${getColorName(currentPlayer)} AI`;
+        showMessage(`${currentPlayerName}의 차례입니다.`);
+    }
+
+    // Event listeners
+    canvas.addEventListener('click', handleMove);
+    newGameButton.addEventListener('click', initGame);
+
+    // Initial game start
+    initGame();
+</script>
+
+</body>
+</html>
