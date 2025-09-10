@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>최강 AI 오목 게임</title>
+    <title>ISEDOLGOMOK 오목!</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
@@ -22,7 +22,7 @@
             box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
             padding: 2rem;
             max-width: 90%;
-            width: 500px;
+            width: 600px;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -30,8 +30,8 @@
         canvas {
             border: 2px solid #4a5568;
             border-radius: 0.5rem;
-            background-color: #e2e8f0;
-            touch-action: none; /* Prevent default touch actions */
+            background-color: #a07c5a; /* Wood-like background */
+            touch-action: none;
         }
         .button {
             transition: all 0.2s ease-in-out;
@@ -58,18 +58,23 @@
 <div class="container">
     <h1 class="text-3xl font-bold text-gray-800 mb-4">최강 AI 오목 게임</h1>
     <p class="text-center text-gray-600 mb-6">
-        당신은 검은 돌, AI는 빨간 돌입니다. 먼저 5개의 돌을 연결하면 승리합니다!
+        먼저 5개의 돌을 연결하면 승리합니다! (흑돌은 3-3, 4-4 금수)
     </p>
 
     <canvas id="gameCanvas"></canvas>
 
     <div id="message-box" class="mt-4 text-lg font-semibold text-center text-gray-700">
-        <span class="message-content">게임을 시작하려면 '새 게임' 버튼을 클릭하세요.</span>
+        <span class="message-content">게임을 시작하려면 돌 색깔을 선택하세요.</span>
     </div>
 
-    <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 mt-6 w-full justify-center">
-        <button id="newGameButton" class="button bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full">
-            새 게임
+    <div id="player-choice" class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 mt-6 w-full justify-center">
+        <button id="blackButton" class="button bg-gray-800 hover:bg-gray-900 text-white font-bold py-2 px-4 rounded-full">
+            <svg class="h-5 w-5 inline-block mr-2" fill="white" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10"/></svg>
+            검은 돌로 플레이
+        </button>
+        <button id="redButton" class="button bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-full">
+            <svg class="h-5 w-5 inline-block mr-2" fill="red" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10"/></svg>
+            빨간 돌로 플레이
         </button>
     </div>
 </div>
@@ -77,17 +82,20 @@
 <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    const newGameButton = document.getElementById('newGameButton');
+    const blackButton = document.getElementById('blackButton');
+    const redButton = document.getElementById('redButton');
+    const playerChoiceDiv = document.getElementById('player-choice');
     const messageBox = document.getElementById('message-box');
 
-    const BOARD_SIZE = 15;
-    const CELL_SIZE = 30;
-    const PADDING = 20;
+    const BOARD_SIZE = 19;
+    const CELL_SIZE = 25;
+    const PADDING = 25;
     const WIN_COUNT = 5;
-    const AI_SEARCH_DEPTH = 3;
+    const AI_SEARCH_DEPTH = 4;
 
     let board = [];
-    let currentPlayer = 'black';
+    let playerColor = null;
+    let aiColor = null;
     let isGameOver = false;
 
     // Set canvas dimensions
@@ -95,19 +103,24 @@
     canvas.width = canvasSize;
     canvas.height = canvasSize;
 
-    // Initialize game
-    function initGame() {
+    // Initialize game with chosen color
+    function initGame(color) {
+        playerColor = color;
+        aiColor = (color === 'black') ? 'red' : 'black';
         board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
-        currentPlayer = 'black';
         isGameOver = false;
+        playerChoiceDiv.style.display = 'none';
         drawBoard();
         updateMessage();
+        if (playerColor === 'red') {
+            setTimeout(aiMove, 500);
+        }
     }
 
     // Draw the game board
     function drawBoard() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#e2e8f0';
+        ctx.fillStyle = '#a07c5a';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         // Draw grid lines
@@ -163,7 +176,8 @@
 
     // Handle player's move
     function handleMove(event) {
-        if (currentPlayer !== 'black' || isGameOver) return;
+        if (isGameOver || !playerColor) return;
+        if (currentPlayer !== playerColor) return;
 
         const rect = canvas.getBoundingClientRect();
         const x = event.clientX - rect.left;
@@ -173,7 +187,11 @@
         const row = Math.round((y - PADDING) / CELL_SIZE);
 
         if (row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE && board[row][col] === null) {
-            placeStone(row, col, 'black');
+            if (playerColor === 'black' && checkForbiddenMove(row, col, 'black')) {
+                showMessage("금수(3-3 또는 4-4)는 둘 수 없습니다.");
+                return;
+            }
+            placeStone(row, col, playerColor);
         } else if (board[row][col] !== null) {
             showMessage("이미 돌이 있는 곳에는 둘 수 없습니다.");
         }
@@ -189,24 +207,24 @@
         } else if (isBoardFull()) {
             endGame('draw');
         } else {
-            currentPlayer = (color === 'black') ? 'red' : 'black';
+            currentPlayer = (color === playerColor) ? aiColor : playerColor;
             updateMessage();
-            if (currentPlayer === 'red') {
+            if (currentPlayer === aiColor) {
                 setTimeout(aiMove, 500);
             }
         }
     }
 
-    // Check for a winning condition
+    // Check for a winning condition (exactly 5 stones)
     function checkWin(row, col, color) {
         const directions = [
-            [0, 1], [1, 0], [1, 1], [1, -1] // Horizontal, Vertical, Diagonal (\), Diagonal (/)
+            [0, 1], [1, 0], [1, 1], [1, -1]
         ];
 
         for (const [dr, dc] of directions) {
             let count = 1;
-            // Check forward direction
-            for (let i = 1; i < WIN_COUNT; i++) {
+            // Count forward
+            for (let i = 1; i < WIN_COUNT + 2; i++) { // Check up to 6 for 6-mok rule
                 const r = row + i * dr;
                 const c = col + i * dc;
                 if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] === color) {
@@ -215,8 +233,8 @@
                     break;
                 }
             }
-            // Check backward direction
-            for (let i = 1; i < WIN_COUNT; i++) {
+            // Count backward
+            for (let i = 1; i < WIN_COUNT + 2; i++) {
                 const r = row - i * dr;
                 const c = col - i * dc;
                 if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] === color) {
@@ -225,12 +243,56 @@
                     break;
                 }
             }
-            if (count >= WIN_COUNT) {
+            // Check for 5-in-a-row exactly
+            if (count === WIN_COUNT) {
                 return true;
             }
         }
         return false;
     }
+
+    // Check for 3-3 and 4-4 forbidden moves (for black only)
+    function checkForbiddenMove(row, col, color) {
+        if (color !== 'black') return false;
+        
+        const tempBoard = JSON.parse(JSON.stringify(board));
+        tempBoard[row][col] = color;
+
+        const getLineCount = (r, c, dr, dc) => {
+            let count = 0;
+            while(r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && tempBoard[r][c] === color) {
+                count++;
+                r += dr;
+                c += dc;
+            }
+            return count;
+        };
+
+        const getOpenEnds = (r, c, dr, dc, count) => {
+            const r1 = r + dr * count;
+            const c1 = c + dc * count;
+            const r2 = r - dr;
+            const c2 = c - dc;
+            let open = 0;
+            if (r1 >= 0 && r1 < BOARD_SIZE && c1 >= 0 && c1 < BOARD_SIZE && tempBoard[r1][c1] === null) open++;
+            if (r2 >= 0 && r2 < BOARD_SIZE && c2 >= 0 && c2 < BOARD_SIZE && tempBoard[r2][c2] === null) open++;
+            return open;
+        };
+        
+        let threeCount = 0;
+        let fourCount = 0;
+
+        const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
+        for (const [dr, dc] of directions) {
+            const count1 = getLineCount(row, col, dr, dc) + getLineCount(row, col, -dr, -dc) - 1;
+            const openEnds = getOpenEnds(row, col, dr, dc, count1) + getOpenEnds(row, col, -dr, -dc, count1);
+            if (count1 === 3 && openEnds === 2) threeCount++;
+            if (count1 === 4 && openEnds === 2) fourCount++;
+        }
+        
+        return threeCount > 1 || fourCount > 1;
+    }
+
 
     // Check if the board is full
     function isBoardFull() {
@@ -251,7 +313,7 @@
         if (winner === 'draw') {
             message = '무승부입니다!';
         } else {
-            const winnerName = (winner === 'black') ? '당신' : 'AI';
+            const winnerName = (winner === playerColor) ? '당신' : 'AI';
             message = `${winnerName}의 승리입니다! 🎉`;
         }
         showMessage(message);
@@ -263,9 +325,9 @@
         
         showMessage("AI가 생각 중입니다...");
         
-        const bestMove = findBestMove(board, AI_SEARCH_DEPTH, 'red');
+        const bestMove = findBestMove(board, AI_SEARCH_DEPTH, aiColor);
         if (bestMove) {
-            placeStone(bestMove.row, bestMove.col, 'red');
+            placeStone(bestMove.row, bestMove.col, aiColor);
         } else {
             endGame('draw');
         }
@@ -295,12 +357,11 @@
 
     function minimax(board, depth, isMaximizingPlayer, alpha, beta) {
         const score = evaluateBoard(board);
-        if (depth === 0 || isGameOver || Math.abs(score) > 100000) {
+        if (depth === 0 || isGameOver || Math.abs(score) > 1000000) {
             return score;
         }
 
-        const color = isMaximizingPlayer ? 'red' : 'black';
-        const opponentColor = isMaximizingPlayer ? 'black' : 'red';
+        const color = isMaximizingPlayer ? aiColor : playerColor;
         
         const possibleMoves = getPossibleMoves(board);
 
@@ -339,13 +400,15 @@
             for (let c = 0; c < BOARD_SIZE; c++) {
                 if (board[r][c] !== null) {
                     for (const [dr, dc] of directions) {
-                        const newR = r + dr;
-                        const newC = c + dc;
-                        if (newR >= 0 && newR < BOARD_SIZE && newC >= 0 && newC < BOARD_SIZE && board[newR][newC] === null) {
-                            const key = `${newR}-${newC}`;
-                            if (!checked.has(key)) {
-                                moves.push({ row: newR, col: newC });
-                                checked.add(key);
+                        for (let i = 1; i <= 2; i++) {
+                            const newR = r + i * dr;
+                            const newC = c + i * dc;
+                            if (newR >= 0 && newR < BOARD_SIZE && newC >= 0 && newC < BOARD_SIZE && board[newR][newC] === null) {
+                                const key = `${newR}-${newC}`;
+                                if (!checked.has(key)) {
+                                    moves.push({ row: newR, col: newC });
+                                    checked.add(key);
+                                }
                             }
                         }
                     }
@@ -369,96 +432,70 @@
 
     function evaluateBoard(board) {
         let score = 0;
-        score += evaluatePlayer(board, 'red') - evaluatePlayer(board, 'black');
+        score += evaluatePlayer(board, aiColor) - evaluatePlayer(board, playerColor);
         return score;
     }
 
     function evaluatePlayer(board, color) {
         let score = 0;
-        const opponent = (color === 'black') ? 'red' : 'black';
+        const opponent = (color === aiColor) ? playerColor : aiColor;
 
-        // Winning lines (Open 5)
-        for (let r = 0; r < BOARD_SIZE; r++) {
-            for (let c = 0; c < BOARD_SIZE; c++) {
-                if (board[r][c] === color) {
-                    if (checkSequence(r, c, color, 5)) return 100000;
-                }
-            }
-        }
+        const patterns = {
+            '5': 1000000,
+            'open_4': 100000,
+            'blocked_4': 1000,
+            'open_3': 1000,
+            'blocked_3': 100,
+            'open_2': 100,
+            'blocked_2': 10
+        };
 
-        // Potential lines
+        const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
+
         for (let r = 0; r < BOARD_SIZE; r++) {
             for (let c = 0; c < BOARD_SIZE; c++) {
                 if (board[r][c] === null) {
-                    // Check horizontal
-                    score += getLineScore(board, r, c, color, 0, 1, 5);
-                    // Check vertical
-                    score += getLineScore(board, r, c, color, 1, 0, 5);
-                    // Check diagonal \
-                    score += getLineScore(board, r, c, color, 1, 1, 5);
-                    // Check diagonal /
-                    score += getLineScore(board, r, c, color, 1, -1, 5);
+                    for (const [dr, dc] of directions) {
+                        let myCount = 0;
+                        let opponentCount = 0;
+                        let emptyCount = 0;
+                        
+                        // Check a window of 5 around the empty cell
+                        for (let i = -4; i <= 4; i++) {
+                            const newR = r + i * dr;
+                            const newC = c + i * dc;
+                            if (newR >= 0 && newR < BOARD_SIZE && newC >= 0 && newC < BOARD_SIZE) {
+                                if (board[newR][newC] === color) {
+                                    myCount++;
+                                } else if (board[newR][newC] === opponent) {
+                                    opponentCount++;
+                                }
+                            }
+                        }
+
+                        if (opponentCount === 0) {
+                            if (myCount === 4) score += patterns['open_4'];
+                            else if (myCount === 3) score += patterns['open_3'];
+                            else if (myCount === 2) score += patterns['open_2'];
+                        } else if (myCount === 0) {
+                            if (opponentCount === 4) score -= patterns['open_4'];
+                            else if (opponentCount === 3) score -= patterns['open_3'];
+                            else if (opponentCount === 2) score -= patterns['open_2'];
+                        }
+                    }
                 }
             }
         }
-
-        return score;
-    }
-
-    function getLineScore(board, row, col, color, dr, dc, length) {
-        const opponent = (color === 'black') ? 'red' : 'black';
-        let myCount = 0;
-        let opponentCount = 0;
-        let emptyCount = 0;
-        let score = 0;
-
-        // Check forward
-        for (let i = 0; i < length; i++) {
-            const r = row + i * dr;
-            const c = col + i * dc;
-            if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE) {
-                if (board[r][c] === color) myCount++;
-                else if (board[r][c] === opponent) opponentCount++;
-                else emptyCount++;
-            }
-        }
-
-        if (opponentCount === 0) {
-            if (myCount === 4 && emptyCount >= 1) score += 10000; // Live 4
-            else if (myCount === 3 && emptyCount >= 2) score += 1000; // Live 3
-            else if (myCount === 2 && emptyCount >= 3) score += 100; // Live 2
-        }
-
-        if (myCount === 0) {
-            if (opponentCount === 4 && emptyCount >= 1) score += 9000; // Blocked 4
-            else if (opponentCount === 3 && emptyCount >= 2) score += 900; // Blocked 3
-            else if (opponentCount === 2 && emptyCount >= 3) score += 90; // Blocked 2
-        }
         
-        return score;
-    }
-
-    function checkSequence(row, col, color, length) {
-        const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
-        for (const [dr, dc] of directions) {
-            let count = 1;
-            for (let i = 1; i < length; i++) {
-                const r = row + i * dr;
-                const c = col + i * dc;
-                if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] === color) {
-                    count++;
-                } else break;
+        // Final win check for immediate win/loss
+        for(let r = 0; r < BOARD_SIZE; r++) {
+            for(let c = 0; c < BOARD_SIZE; c++) {
+                if(board[r][c] === color && checkWin(r, c, color)) return patterns['5'];
+                if(board[r][c] === opponent && checkWin(r, c, opponent)) return -patterns['5'];
             }
-            for (let i = 1; i < length; i++) {
-                const r = row - i * dr;
-                const c = col - i * dc;
-                if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] === color) {
-                    count++;
-                } else break;
-            }
-            if (count >= length) return true;
         }
-        return false;
+
+        return score;
     }
 
     // Show messages to the user
@@ -468,18 +505,19 @@
 
     // Update the message box with current turn
     function updateMessage() {
-        const currentPlayerName = (currentPlayer === 'black') ? '당신' : 'AI';
-        showMessage(`${currentPlayerName}의 차례입니다.`);
+        const currentPlayerName = (currentPlayer === playerColor) ? '당신' : 'AI';
+        const stoneColor = (currentPlayer === playerColor) ? '검은 돌' : '빨간 돌';
+        showMessage(`${currentPlayerName}의 차례입니다 (${stoneColor}).`);
     }
 
     // Event listeners
+    blackButton.addEventListener('click', () => initGame('black'));
+    redButton.addEventListener('click', () => initGame('red'));
     canvas.addEventListener('click', handleMove);
-    newGameButton.addEventListener('click', initGame);
 
     // Initial game start
-    initGame();
+    initGame(null); // Wait for user to choose a color
 </script>
 
 </body>
 </html>
-
