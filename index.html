@@ -10,7 +10,7 @@
         @import url('https://fonts.fonts.gstatic.com/s/inter/v13/UcCO3FhYC0h0yCq3j_2JpGxw6J7O.woff2');
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f0f4f8;
+            background-color: #2d3748; /* 배경을 다크 그레이로 변경 */
             display: flex;
             justify-content: center;
             align-items: center;
@@ -32,7 +32,7 @@
         canvas {
             border: 2px solid #4a5568;
             border-radius: 0.5rem;
-            background-color: #a07c5a;
+            background-color: #d1d5db; /* 오목판 배경을 밝은 회색으로 변경 */
             touch-action: none;
             cursor: pointer;
         }
@@ -136,6 +136,7 @@
     let playerTime = INITIAL_TIME_LIMIT; // 사용자 남은 시간
     let aiTime = INITIAL_TIME_LIMIT; // AI 남은 시간
     let timerInterval = null; // 타이머를 위한 변수
+    let moveCount = 0; // 게임에서 놓인 돌의 수를 추적합니다.
 
     // 캔버스 크기 설정
     const canvasSize = (BOARD_SIZE - 1) * CELL_SIZE + 2 * PADDING;
@@ -164,22 +165,22 @@
         isGameOver = false;
         playerTime = INITIAL_TIME_LIMIT;
         aiTime = INITIAL_TIME_LIMIT;
+        moveCount = 0;
         
         // 사용자가 흑돌을 선택했으면 사용자 먼저, 아니면 AI 먼저 시작
         if (playerColor === 'black') {
             currentPlayer = 'black';
             startTimer('player');
-            canvas.addEventListener('click', handleMove);
         } else { // 사용자가 흰돌을 선택했으면 AI가 먼저 시작
-            currentPlayer = 'black';
+            currentPlayer = 'black'; // AI는 항상 흑돌로 시작합니다.
             startTimer('ai');
             setTimeout(aiMove, 500);
-            canvas.addEventListener('click', handleMove);
         }
         
         drawBoard();
         updateMessage();
         updateTimers();
+        canvas.addEventListener('click', handleMove);
     }
 
     // --- 타이머 로직 ---
@@ -222,7 +223,7 @@
     // 오목판을 그립니다.
     function drawBoard() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#a07c5a';
+        ctx.fillStyle = '#d1d5db'; /* 오목판 배경을 밝은 회색으로 설정 */
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         ctx.strokeStyle = '#4a5568';
@@ -302,6 +303,7 @@
     // 지정된 위치에 돌을 놓고, 승리 여부를 확인합니다.
     function placeStone(row, col, color) {
         board[row][col] = color;
+        moveCount++; // 돌을 놓을 때마다 수를 증가시킵니다.
         drawBoard();
         
         if (checkWin(row, col, color)) {
@@ -453,7 +455,7 @@
     function aiMove() {
         if (isGameOver) return;
         showMessage("AI가 생각 중입니다...");
-        
+
         const bestMove = findBestMove(board, AI_SEARCH_DEPTH, aiColor);
         if (bestMove) {
             placeStone(bestMove.row, bestMove.col, aiColor);
@@ -469,10 +471,10 @@
         let alpha = -Infinity;
         let beta = Infinity;
 
-        const emptyCells = getPossibleMoves(board);
-        if (emptyCells.length === 0) return null;
+        // 돌이 있는 곳 주변의 유효한 수만 탐색하여 효율을 높입니다.
+        const possibleMoves = getStrategicMoves(board);
 
-        for (const move of emptyCells) {
+        for (const move of possibleMoves) {
             board[move.row][move.col] = color;
             const score = minimax(board, depth - 1, false, alpha, beta);
             board[move.row][move.col] = null;
@@ -494,7 +496,7 @@
         }
 
         const color = isMaximizingPlayer ? aiColor : playerColor;
-        const possibleMoves = getPossibleMoves(board);
+        const possibleMoves = getStrategicMoves(board);
 
         if (isMaximizingPlayer) {
             let maxEval = -Infinity;
@@ -522,18 +524,28 @@
     }
     
     // 현재 놓인 돌 주변의 유효한 빈 칸을 찾습니다.
-    function getPossibleMoves(board) {
+    // 이 함수가 AI의 탐색 공간을 제한하여 성능을 크게 향상시킵니다.
+    function getStrategicMoves(board) {
         const moves = [];
         const checked = new Set();
-        const directions = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
+        // 주변 2칸을 탐색합니다.
+        const searchRadius = 2;
+        
+        // 보드에 돌이 하나도 없을 경우, 중앙을 첫 수로 제안합니다.
+        if (moveCount === 0) {
+            return [{ row: Math.floor(BOARD_SIZE / 2), col: Math.floor(BOARD_SIZE / 2) }];
+        }
 
+        // 이미 돌이 놓여 있는 칸을 중심으로 탐색합니다.
         for (let r = 0; r < BOARD_SIZE; r++) {
             for (let c = 0; c < BOARD_SIZE; c++) {
                 if (board[r][c] !== null) {
-                    for (const [dr, dc] of directions) {
-                        for (let i = 1; i <= 2; i++) {
-                            const newR = r + i * dr;
-                            const newC = c + i * dc;
+                    for (let dr = -searchRadius; dr <= searchRadius; dr++) {
+                        for (let dc = -searchRadius; dc <= searchRadius; dc++) {
+                            const newR = r + dr;
+                            const newC = c + dc;
+                            
+                            // 보드 범위 내의 빈 칸만 추가
                             if (newR >= 0 && newR < BOARD_SIZE && newC >= 0 && newC < BOARD_SIZE && board[newR][newC] === null) {
                                 const key = `${newR}-${newC}`;
                                 if (!checked.has(key)) {
